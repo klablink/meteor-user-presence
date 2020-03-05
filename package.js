@@ -1,32 +1,32 @@
 Package.describe({
-	name: 'konecty:user-presence',
-	summary: 'Track user status',
-	version: '2.6.2',
-	git: 'https://github.com/Konecty/meteor-user-presence'
+    name: 'konecty:user-presence',
+    summary: 'Track user status',
+    version: '2.7.0',
+    git: 'https://github.com/Konecty/meteor-user-presence',
 });
 
 Package.onUse(function(api) {
-	api.versionsFrom('1.0.2.1');
+    api.versionsFrom('2.13.3');
 
-	api.use('tracker');
-	api.use('check');
-	api.use('ecmascript@0.12.2');
+    api.use('tracker');
+    api.use('check');
+    api.use('ecmascript');
 
-	api.addFiles('common/common.js');
-	api.addFiles('server/server.js', ['server']);
-	api.addFiles('server/monitor.js', ['server']);
-	api.addFiles('client/client.js', ['client']);
+    api.addFiles('common/common.js');
+    api.addFiles('server/server.js', ['server']);
+    api.addFiles('server/monitor.js', ['server']);
+    api.addFiles('client/client.js', ['client']);
 
-	api.export(['UserPresence', 'UsersSessions'], ['server', 'client']);
-	api.export(['UserPresenceMonitor', 'UserPresenceEvents'], ['server']);
+    api.export(['UserPresence', 'UsersSessions'], ['server', 'client']);
+    api.export(['UserPresenceMonitor', 'UserPresenceEvents'], ['server']);
 });
 
 Package.onTest(function(api) {
-	api.use('tinytest');
-	api.use('konecty:user-presence');
-	api.addFiles('user-presence-tests.js');
+    api.use('tinytest');
+    api.use('konecty:user-presence');
+    api.addFiles('user-presence-tests.js');
 });
 
 Npm.depends({
-  'colors': '1.3.2'
+    colors: '1.3.2',
 });

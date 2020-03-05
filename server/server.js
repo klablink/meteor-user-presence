@@ -4,11 +4,11 @@ import 'colors';
 UsersSessions._ensureIndex({'connections.instanceId': 1}, {sparse: 1, name: 'connections.instanceId'});
 UsersSessions._ensureIndex({'connections.id': 1}, {sparse: 1, name: 'connections.id'});
 
-var allowedStatus = ['online', 'away', 'busy', 'offline'];
+const allowedStatus = ['online', 'away', 'busy', 'offline'];
 
-var logEnable = process.env.ENABLE_PRESENCE_LOGS === 'true';
+let logEnable = process.env.ENABLE_PRESENCE_LOGS === 'true';
 
-var log = function(msg, color) {
+const log = function(msg, color) {
 	if (logEnable) {
 		if (color) {
 			console.log(msg[color]);
@@ -18,39 +18,39 @@ var log = function(msg, color) {
 	}
 };
 
-var logRed = function() {
+const logRed = function() {
 	log(Array.prototype.slice.call(arguments).join(' '), 'red');
 };
-var logGrey = function() {
+const logGrey = function() {
 	log(Array.prototype.slice.call(arguments).join(' '), 'grey');
 };
-var logGreen = function() {
+const logGreen = function() {
 	log(Array.prototype.slice.call(arguments).join(' '), 'green');
 };
-var logYellow = function() {
+const logYellow = function() {
 	log(Array.prototype.slice.call(arguments).join(' '), 'yellow');
 };
 
-var checkUser = function(id, userId) {
+const checkUser = async function(id, userId) {
 	if (!id || !userId || id === userId) {
 		return true;
 	}
-	var user = Meteor.users.findOne(id, { fields: { _id: 1 } });
+	const user = await Meteor.users.findOneAsync(id, { fields: { _id: 1 } });
 	if (user) {
 		throw new Meteor.Error('cannot-change-other-users-status');
 	}
 
 	return true;
-}
+};
 
 UserPresence = {
-	activeLogs: function() {
+	activeLogs() {
 		logEnable = true;
 	},
 
-	removeConnectionsByInstanceId: function(instanceId) {
+	async removeConnectionsByInstanceId(instanceId) {
 		logRed('[user-presence] removeConnectionsByInstanceId', instanceId);
-		var update = {
+		const update = {
 			$pull: {
 				connections: {
 					instanceId: instanceId
@@ -58,12 +58,12 @@ UserPresence = {
 			}
 		};
 
-		UsersSessions.update({}, update, {multi: true});
+		await UsersSessions.updateAsync({}, update, {multi: true});
 	},
 
-	removeAllConnections: function() {
+	removeAllConnections: await function() {
 		logRed('[user-presence] removeAllConnections');
-		UsersSessions.remove({});
+		UsersSessions.removeAsync({});
 	},
 
 	getConnectionHandle(connectionId) {
@@ -76,7 +76,7 @@ UserPresence = {
 		return internalConnection.connectionHandle;
 	},
 
-	createConnection: function(userId, connection, status, metadata) {
+	async createConnection(userId, connection, status, metadata) {
 		// if connections is invalid, does not have an userId or is already closed, don't save it on db
 		if (!userId || !connection.id) {
 			return;
@@ -94,18 +94,18 @@ UserPresence = {
 
 		logGreen('[user-presence] createConnection', userId, connection.id, status, metadata);
 
-		var query = {
+		const query = {
 			_id: userId
 		};
 
-		var now = new Date();
+		const now = new Date();
 
-		var instanceId = undefined;
+		let instanceId = undefined;
 		if (Package['konecty:multiple-instances-status']) {
 			instanceId = InstanceStatus.id();
 		}
 
-		var update = {
+		const update = {
 			$push: {
 				connections: {
 					id: connection.id,
@@ -126,25 +126,25 @@ UserPresence = {
 
 		// make sure closed connections are being created
 		if (!connectionHandle.closed) {
-			UsersSessions.upsert(query, update);
+			await UsersSessions.upsertAsync(query, update);
 		}
 	},
 
-	setConnection: function(userId, connection, status) {
+	async setConnection(userId, connection, status) {
 		if (!userId) {
 			return;
 		}
 
 		logGrey('[user-presence] setConnection', userId, connection.id, status);
 
-		var query = {
+		const query = {
 			_id: userId,
 			'connections.id': connection.id
 		};
 
-		var now = new Date();
+		const now = new Date();
 
-		var update = {
+		const update = {
 			$set: {
 				'connections.$.status': status,
 				'connections.$._updatedAt': now
@@ -155,20 +155,20 @@ UserPresence = {
 			update.$set.metadata = connection.metadata;
 		}
 
-		var count = UsersSessions.update(query, update);
+		const count = await UsersSessions.updateAsync(query, update);
 
 		if (count === 0) {
-			return UserPresence.createConnection(userId, connection, status, connection.metadata);
+			return await UserPresence.createConnection(userId, connection, status, connection.metadata);
 		}
 
 		if (status === 'online') {
-			Meteor.users.update({_id: userId, statusDefault: 'online', status: {$ne: 'online'}}, {$set: {status: 'online'}});
+			await Meteor.users.updateAsync({_id: userId, statusDefault: 'online', status: {$ne: 'online'}}, {$set: {status: 'online'}});
 		} else if (status === 'away') {
-			Meteor.users.update({_id: userId, statusDefault: 'online', status: {$ne: 'away'}}, {$set: {status: 'away'}});
+			await Meteor.users.updateAsync({_id: userId, statusDefault: 'online', status: {$ne: 'away'}}, {$set: {status: 'away'}});
 		}
 	},
 
-	setDefaultStatus: function(userId, status) {
+	async setDefaultStatus(userId, status) {
 		if (!userId) {
 			return;
 		}
@@ -179,21 +179,21 @@ UserPresence = {
 
 		logYellow('[user-presence] setDefaultStatus', userId, status);
 
-		var update = Meteor.users.update({_id: userId, statusDefault: {$ne: status}}, {$set: {statusDefault: status}});
+		const update = await Meteor.users.updateAsync({_id: userId, statusDefault: {$ne: status}}, {$set: {statusDefault: status}});
 
 		if (update > 0) {
-			UserPresenceMonitor.processUser(userId, { statusDefault: status });
+			await UserPresenceMonitor.processUser(userId, { statusDefault: status });
 		}
 	},
 
-	removeConnection: function(connectionId) {
+	async removeConnection(connectionId) {
 		logRed('[user-presence] removeConnection', connectionId);
 
-		var query = {
+		const query = {
 			'connections.id': connectionId
 		};
 
-		var update = {
+		const update = {
 			$pull: {
 				connections: {
 					id: connectionId
@@ -201,14 +201,14 @@ UserPresence = {
 			}
 		};
 
-		return UsersSessions.update(query, update);
+		return await UsersSessions.updateAsync(query, update);
 	},
 
-	start: function() {
+	start() {
 		Meteor.onConnection(function(connection) {
 			const session = Meteor.server.sessions.get(connection.id);
 
-			connection.onClose(function() {
+			connection.onClose(async function() {
 				if (!session) {
 					return;
 				}
@@ -222,43 +222,43 @@ UserPresence = {
 				connectionHandle.closed = true;
 
 				if (connectionHandle.UserPresenceUserId != null) {
-					UserPresence.removeConnection(connection.id);
+					await UserPresence.removeConnection(connection.id);
 				}
 			});
 		});
 
-		process.on('exit', Meteor.bindEnvironment(function() {
+		process.on('exit', async function() {
 			if (Package['konecty:multiple-instances-status']) {
-				UserPresence.removeConnectionsByInstanceId(InstanceStatus.id());
+				await UserPresence.removeConnectionsByInstanceId(InstanceStatus.id());
 			} else {
 				UserPresence.removeAllConnections();
 			}
-		}));
+		});
 
 		if (Package['accounts-base']) {
-			Accounts.onLogin(function(login) {
-				UserPresence.createConnection(login.user._id, login.connection);
+			Accounts.onLogin(async function(login) {
+				await UserPresence.createConnection(login.user._id, login.connection);
 			});
 
-			Accounts.onLogout(function(login) {
-				UserPresence.removeConnection(login.connection.id);
+			Accounts.onLogout(async function(login) {
+				await UserPresence.removeConnection(login.connection.id);
 			});
 		}
 
-		Meteor.publish(null, function() {
+		Meteor.publish(null, async function() {
 			if (this.userId == null && this.connection && this.connection.id) {
 				const connectionHandle = UserPresence.getConnectionHandle(this.connection.id);
 				if (connectionHandle && connectionHandle.UserPresenceUserId != null) {
-					UserPresence.removeConnection(this.connection.id);
+					await UserPresence.removeConnection(this.connection.id);
 				}
 			}
 
 			this.ready();
 		});
 
-		UserPresenceEvents.on('setStatus', function(userId, status) {
-			var user = Meteor.users.findOne(userId);
-			var statusConnection = status;
+		UserPresenceEvents.on('setStatus', async function(userId, status) {
+			const user = Meteor.users.findOneAsync(userId);
+			const statusConnection = status;
 
 			if (!user) {
 				return;
@@ -268,7 +268,7 @@ UserPresence = {
 				status = user.statusDefault;
 			}
 
-			var query = {
+			const query = {
 				_id: userId,
 				$or: [
 					{status: {$ne: status}},
@@ -276,14 +276,14 @@ UserPresence = {
 				]
 			};
 
-			var update = {
+			const update = {
 				$set: {
 					status: status,
 					statusConnection: statusConnection
 				}
 			};
 
-			const result = Meteor.users.update(query, update);
+			const result = await Meteor.users.updateAsync(query, update);
 
 			// if nothing updated, do not emit anything
 			if (result) {
@@ -292,40 +292,40 @@ UserPresence = {
 		});
 
 		Meteor.methods({
-			'UserPresence:connect': function(id, metadata) {
+			async 'UserPresence:connect'(id, metadata) {
 				check(id, Match.Maybe(String));
 				check(metadata, Match.Maybe(Object));
 				this.unblock();
-				checkUser(id, this.userId);
-				UserPresence.createConnection(id || this.userId, this.connection, 'online', metadata);
+				await checkUser(id, this.userId);
+				await UserPresence.createConnection(id || this.userId, this.connection, 'online', metadata);
 			},
 
-			'UserPresence:away': function(id) {
+			async 'UserPresence:away'(id) {
 				check(id, Match.Maybe(String));
 				this.unblock();
-				checkUser(id, this.userId);
-				UserPresence.setConnection(id || this.userId, this.connection, 'away');
+				await checkUser(id, this.userId);
+				await UserPresence.setConnection(id || this.userId, this.connection, 'away');
 			},
 
-			'UserPresence:online': function(id) {
+			async 'UserPresence:online'(id) {
 				check(id, Match.Maybe(String));
 				this.unblock();
-				checkUser(id, this.userId);
-				UserPresence.setConnection(id || this.userId, this.connection, 'online');
+				await checkUser(id, this.userId);
+				await UserPresence.setConnection(id || this.userId, this.connection, 'online');
 			},
 
-			'UserPresence:setDefaultStatus': function(id, status) {
+			async 'UserPresence:setDefaultStatus'(id, status) {
 				check(id, Match.Maybe(String));
 				check(status, Match.Maybe(String));
 				this.unblock();
 
 				// backward compatible (receives status as first argument)
 				if (arguments.length === 1) {
-					UserPresence.setDefaultStatus(this.userId, id);
+					await UserPresence.setDefaultStatus(this.userId, id);
 					return;
 				}
-				checkUser(id, this.userId);
-				UserPresence.setDefaultStatus(id || this.userId, status);
+				await checkUser(id, this.userId);
+				await UserPresence.setDefaultStatus(id || this.userId, status);
 			}
 		});
 	}

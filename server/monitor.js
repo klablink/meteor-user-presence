@@ -1,40 +1,41 @@
 /* globals UserPresenceMonitor, UsersSessions, InstanceStatus */
-var EventEmitter = Npm.require('events');
+const EventEmitter = Npm.require('events');
 
 UserPresenceEvents = new EventEmitter();
 
 function monitorUsersSessions() {
 	UsersSessions.find({}).observe({
-		added: function(record) {
-			UserPresenceMonitor.processUserSession(record, 'added');
+		async added(record) {
+			await UserPresenceMonitor.processUserSession(record, 'added');
 		},
-		changed: function(record) {
-			UserPresenceMonitor.processUserSession(record, 'changed');
+		async changed(record) {
+			await UserPresenceMonitor.processUserSession(record, 'changed');
 		},
-		removed: function(record) {
-			UserPresenceMonitor.processUserSession(record, 'removed');
+		async removed(record) {
+			await UserPresenceMonitor.processUserSession(record, 'removed');
 		}
 	});
 }
 
 function monitorDeletedServers() {
 	InstanceStatus.getCollection().find({}, {fields: {_id: 1}}).observeChanges({
-		removed: function(id) {
+		removed(id) {
 			UserPresence.removeConnectionsByInstanceId(id);
 		}
 	});
 }
 
-function removeLostConnections() {
+async function removeLostConnections() {
 	if (!Package['konecty:multiple-instances-status']) {
-		return UsersSessions.remove({});
+		return await UsersSessions.removeAsync({});
 	}
 
-	var ids = InstanceStatus.getCollection().find({}, {fields: {_id: 1}}).fetch().map(function(id) {
+    let idsList = await InstanceStatus.getCollection().find({}, {fields: {_id: 1}}).fetchAsync();
+	const ids = idsList.map(function(id) {
 		return id._id;
 	});
 
-	var update = {
+	const update = {
 		$pull: {
 			connections: {
 				instanceId: {
@@ -43,28 +44,28 @@ function removeLostConnections() {
 			}
 		}
 	};
-	UsersSessions.update({}, update, {multi: true});
+	await UsersSessions.updateAsync({}, update, {multi: true});
 }
 
 UserPresenceMonitor = {
 	/**
 	 * The callback will receive the following parameters: user, status, statusConnection
 	 */
-	onSetUserStatus: function(callback) {
+	onSetUserStatus(callback) {
 		UserPresenceEvents.on('setUserStatus', callback);
 	},
 
 	// following actions/observers will run only when presence monitor turned on
-	start: function() {
+	async start() {
 		monitorUsersSessions();
-		removeLostConnections();
+		await removeLostConnections();
 
 		if (Package['konecty:multiple-instances-status']) {
 			monitorDeletedServers();
 		}
 	},
 
-	processUserSession: function(record, action) {
+	async processUserSession(record, action) {
 		if (action === 'removed' && (record.connections == null || record.connections.length === 0)) {
 			return;
 		}
@@ -73,12 +74,12 @@ UserPresenceMonitor = {
 			UserPresenceMonitor.setStatus(record._id, 'offline', record.metadata);
 
 			if (action !== 'removed') {
-				UsersSessions.remove({_id: record._id, 'connections.0': {$exists: false} });
+				await UsersSessions.removeAsync({_id: record._id, 'connections.0': {$exists: false} });
 			}
 			return;
 		}
 
-		var connectionStatus = 'offline';
+		let connectionStatus = 'offline';
 		record.connections.forEach(function(connection) {
 			if (connection.status === 'online') {
 				connectionStatus = 'online';
@@ -90,19 +91,19 @@ UserPresenceMonitor = {
 		UserPresenceMonitor.setStatus(record._id, connectionStatus, record.metadata);
 	},
 
-	processUser: function(id, fields) {
+	async processUser(id, fields) {
 		if (fields.statusDefault == null) {
 			return;
 		}
 
-		var userSession = UsersSessions.findOne({_id: id});
+		const userSession = await UsersSessions.findOneAsync({_id: id});
 
 		if (userSession) {
-			UserPresenceMonitor.processUserSession(userSession, 'changed');
+			await UserPresenceMonitor.processUserSession(userSession, 'changed');
 		}
 	},
 
-	setStatus: function(id, status, metadata) {
+	setStatus(id, status, metadata) {
 		UserPresenceEvents.emit('setStatus', id, status, metadata);
 	}
 };
