@@ -1,37 +1,45 @@
-/* globals InstanceStatus, UsersSessions, UserPresenceMonitor, UserPresence */
 import 'colors';
+import { UsersSessions } from '../common/common';
+import { UserPresenceMonitor, UserPresenceEvents } from './monitor';
+import { Meteor } from 'meteor/meteor';
+import { check, Match } from 'meteor/check';
+// nimport { InstanceStatus } from 'meteor/konecty:multiple-instances-status';
 
-UsersSessions._ensureIndex({'connections.instanceId': 1}, {sparse: 1, name: 'connections.instanceId'});
-UsersSessions._ensureIndex({'connections.id': 1}, {sparse: 1, name: 'connections.id'});
+// KLASYNC: _ensureIndex is deprecated. Use createIndex instead.
+UsersSessions.createIndex({'connections.instanceId': 1}, {sparse: 1, name: 'connections.instanceId'});
+UsersSessions.createIndex({'connections.id': 1}, {sparse: 1, name: 'connections.id'});
 
 const allowedStatus = ['online', 'away', 'busy', 'offline'];
 
-let logEnable = process.env.ENABLE_PRESENCE_LOGS === 'true';
+const {ENABLE_PRESENCE_LOGS} = process.env;
+let logEnable = ENABLE_PRESENCE_LOGS === 'true';
 
-const log = function(msg, color) {
+const log = function log(msg, color) {
 	if (logEnable) {
 		if (color) {
+            // eslint-disable-next-line no-console
 			console.log(msg[color]);
 		} else {
+            // eslint-disable-next-line no-console
 			console.log(msg);
 		}
 	}
 };
 
-const logRed = function() {
-	log(Array.prototype.slice.call(arguments).join(' '), 'red');
+const logRed = function logRed(...args) {
+	log(args.join(' '), 'red');
 };
-const logGrey = function() {
-	log(Array.prototype.slice.call(arguments).join(' '), 'grey');
+const logGrey = function logGrey(...args) {
+	log(args.join(' '), 'grey');
 };
-const logGreen = function() {
-	log(Array.prototype.slice.call(arguments).join(' '), 'green');
+const logGreen = function logGreen(...args) {
+	log(args.join(' '), 'green');
 };
-const logYellow = function() {
-	log(Array.prototype.slice.call(arguments).join(' '), 'yellow');
+const logYellow = function logYellow(...args) {
+	log(args.join(' '), 'yellow');
 };
 
-const checkUser = async function(id, userId) {
+const checkUser = async function checkUser(id, userId) {
 	if (!id || !userId || id === userId) {
 		return true;
 	}
@@ -43,7 +51,7 @@ const checkUser = async function(id, userId) {
 	return true;
 };
 
-UserPresence = {
+const UserPresence = {
 	activeLogs() {
 		logEnable = true;
 	},
@@ -53,31 +61,31 @@ UserPresence = {
 		const update = {
 			$pull: {
 				connections: {
-					instanceId: instanceId
-				}
-			}
+					instanceId,
+				},
+			},
 		};
 
 		await UsersSessions.updateAsync({}, update, {multi: true});
 	},
 
-	removeAllConnections: await function() {
+    async removeAllConnections() {
 		logRed('[user-presence] removeAllConnections');
-		UsersSessions.removeAsync({});
+		await UsersSessions.removeAsync({});
 	},
 
 	getConnectionHandle(connectionId) {
 		const internalConnection = Meteor.server.sessions.get(connectionId);
 
 		if (!internalConnection) {
-			return;
+			return null;
 		}
 
 		return internalConnection.connectionHandle;
 	},
 
 	async createConnection(userId, connection, status, metadata) {
-		// if connections is invalid, does not have an userId or is already closed, don't save it on db
+		// if connections are invalid, does not have a userId or is already closed, don't save it on db
 		if (!userId || !connection.id) {
 			return;
 		}
@@ -95,12 +103,12 @@ UserPresence = {
 		logGreen('[user-presence] createConnection', userId, connection.id, status, metadata);
 
 		const query = {
-			_id: userId
+			_id: userId,
 		};
 
 		const now = new Date();
 
-		let instanceId = undefined;
+		let instanceId;
 		if (Package['konecty:multiple-instances-status']) {
 			instanceId = InstanceStatus.id();
 		}
@@ -109,17 +117,17 @@ UserPresence = {
 			$push: {
 				connections: {
 					id: connection.id,
-					instanceId: instanceId,
-					status: status,
+					instanceId,
+					status,
 					_createdAt: now,
-					_updatedAt: now
-				}
-			}
+					_updatedAt: now,
+				},
+			},
 		};
 
 		if (metadata) {
 			update.$set = {
-				metadata: metadata
+				metadata,
 			};
 			connection.metadata = metadata;
 		}
@@ -132,14 +140,14 @@ UserPresence = {
 
 	async setConnection(userId, connection, status) {
 		if (!userId) {
-			return;
+			return null;
 		}
 
 		logGrey('[user-presence] setConnection', userId, connection.id, status);
 
 		const query = {
 			_id: userId,
-			'connections.id': connection.id
+			'connections.id': connection.id,
 		};
 
 		const now = new Date();
@@ -147,8 +155,8 @@ UserPresence = {
 		const update = {
 			$set: {
 				'connections.$.status': status,
-				'connections.$._updatedAt': now
-			}
+				'connections.$._updatedAt': now,
+			},
 		};
 
 		if (connection.metadata) {
@@ -166,6 +174,8 @@ UserPresence = {
 		} else if (status === 'away') {
 			await Meteor.users.updateAsync({_id: userId, statusDefault: 'online', status: {$ne: 'away'}}, {$set: {status: 'away'}});
 		}
+
+        return null;
 	},
 
 	async setDefaultStatus(userId, status) {
@@ -190,32 +200,32 @@ UserPresence = {
 		logRed('[user-presence] removeConnection', connectionId);
 
 		const query = {
-			'connections.id': connectionId
+			'connections.id': connectionId,
 		};
 
 		const update = {
 			$pull: {
 				connections: {
-					id: connectionId
-				}
-			}
+					id: connectionId,
+				},
+			},
 		};
 
 		return await UsersSessions.updateAsync(query, update);
 	},
 
 	start() {
-		Meteor.onConnection(function(connection) {
+		Meteor.onConnection(function onConnection(connection) {
 			const session = Meteor.server.sessions.get(connection.id);
 
-			connection.onClose(async function() {
+			connection.onClose(async function onClose() {
 				if (!session) {
 					return;
 				}
 
-				const connectionHandle = session.connectionHandle;
+				const {connectionHandle} = session;
 
-				// mark connection as closed so if it drops in the middle of the process it doesn't even is created
+				// mark the connection as closed, so if it drops in the middle of the process, it doesn't even is created
 				if (!connectionHandle) {
 					return;
 				}
@@ -227,25 +237,25 @@ UserPresence = {
 			});
 		});
 
-		process.on('exit', async function() {
+		process.on('exit', async function exit() {
 			if (Package['konecty:multiple-instances-status']) {
 				await UserPresence.removeConnectionsByInstanceId(InstanceStatus.id());
 			} else {
-				UserPresence.removeAllConnections();
+				await UserPresence.removeAllConnections();
 			}
 		});
 
 		if (Package['accounts-base']) {
-			Accounts.onLogin(async function(login) {
+			Accounts.onLogin(async function onLogin(login) {
 				await UserPresence.createConnection(login.user._id, login.connection);
 			});
 
-			Accounts.onLogout(async function(login) {
+			Accounts.onLogout(async function onLogout(login) {
 				await UserPresence.removeConnection(login.connection.id);
 			});
 		}
 
-		Meteor.publish(null, async function() {
+		Meteor.publish(null, async function publish() {
 			if (this.userId == null && this.connection && this.connection.id) {
 				const connectionHandle = UserPresence.getConnectionHandle(this.connection.id);
 				if (connectionHandle && connectionHandle.UserPresenceUserId != null) {
@@ -256,7 +266,7 @@ UserPresence = {
 			this.ready();
 		});
 
-		UserPresenceEvents.on('setStatus', async function(userId, status) {
+		UserPresenceEvents.on('setStatus', async function setStatus(userId, status) {
 			const user = Meteor.users.findOneAsync(userId);
 			const statusConnection = status;
 
@@ -264,28 +274,29 @@ UserPresence = {
 				return;
 			}
 
-			if (user.statusDefault != null && status !== 'offline' && user.statusDefault !== 'online') {
-				status = user.statusDefault;
+            const { statusDefault } = user || {};
+			if (statusDefault != null && status !== 'offline' && statusDefault !== 'online') {
+				status = statusDefault;
 			}
 
 			const query = {
 				_id: userId,
 				$or: [
 					{status: {$ne: status}},
-					{statusConnection: {$ne: statusConnection}}
-				]
+					{statusConnection: {$ne: statusConnection}},
+				],
 			};
 
 			const update = {
 				$set: {
-					status: status,
-					statusConnection: statusConnection
-				}
+					status,
+					statusConnection,
+				},
 			};
 
 			const result = await Meteor.users.updateAsync(query, update);
 
-			// if nothing updated, do not emit anything
+			// if nothing updated do not emit anything
 			if (result) {
 				UserPresenceEvents.emit('setUserStatus', user, status, statusConnection);
 			}
@@ -326,7 +337,9 @@ UserPresence = {
 				}
 				await checkUser(id, this.userId);
 				await UserPresence.setDefaultStatus(id || this.userId, status);
-			}
+			},
 		});
-	}
+	},
 };
+
+export { UserPresence };

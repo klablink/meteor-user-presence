@@ -1,4 +1,5 @@
-/* globals UsersSessions */
-/* exported UsersSessions */
+import { Mongo } from 'meteor/mongo';
 
-UsersSessions = new Meteor.Collection('usersSessions');
+const UsersSessions = new Mongo.Collection('usersSessions');
+
+export { UsersSessions };

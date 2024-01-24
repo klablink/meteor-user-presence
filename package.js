@@ -6,19 +6,25 @@ Package.describe({
 });
 
 Package.onUse(function(api) {
-    api.versionsFrom('2.13.3');
+    api.versionsFrom(['2.13.3', '3.0-beta.0']);
 
     api.use('tracker');
     api.use('check');
     api.use('ecmascript');
+    api.use('mongo')
 
+/*
     api.addFiles('common/common.js');
     api.addFiles('server/server.js', ['server']);
     api.addFiles('server/monitor.js', ['server']);
     api.addFiles('client/client.js', ['client']);
+*/
 
-    api.export(['UserPresence', 'UsersSessions'], ['server', 'client']);
-    api.export(['UserPresenceMonitor', 'UserPresenceEvents'], ['server']);
+    api.mainModule('server.js', 'server')
+    api.mainModule('client.js', 'client')
+
+//    api.export(['UserPresence', 'UsersSessions'], ['server', 'client']);
+//    api.export(['UserPresenceMonitor', 'UserPresenceEvents'], ['server']);
 });
 
 Package.onTest(function(api) {
