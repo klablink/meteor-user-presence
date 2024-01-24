@@ -5,15 +5,15 @@ UserPresenceEvents = new EventEmitter();
 
 function monitorUsersSessions() {
 	UsersSessions.find({}).observe({
-		async added(record) {
-			await UserPresenceMonitor.processUserSession(record, 'added');
+		added(record) {
+			UserPresenceMonitor.processUserSession(record, 'added');
 		},
-		async changed(record) {
-			await UserPresenceMonitor.processUserSession(record, 'changed');
+		changed(record) {
+			UserPresenceMonitor.processUserSession(record, 'changed');
 		},
-		async removed(record) {
-			await UserPresenceMonitor.processUserSession(record, 'removed');
-		}
+		removed(record) {
+			UserPresenceMonitor.processUserSession(record, 'removed');
+		},
 	});
 }
 
@@ -21,7 +21,7 @@ function monitorDeletedServers() {
 	InstanceStatus.getCollection().find({}, {fields: {_id: 1}}).observeChanges({
 		removed(id) {
 			UserPresence.removeConnectionsByInstanceId(id);
-		}
+		},
 	});
 }
 
@@ -30,7 +30,7 @@ async function removeLostConnections() {
 		return await UsersSessions.removeAsync({});
 	}
 
-    let idsList = await InstanceStatus.getCollection().find({}, {fields: {_id: 1}}).fetchAsync();
+    const idsList = await InstanceStatus.getCollection().find({}, {fields: {_id: 1}}).fetchAsync();
 	const ids = idsList.map(function(id) {
 		return id._id;
 	});
@@ -39,10 +39,10 @@ async function removeLostConnections() {
 		$pull: {
 			connections: {
 				instanceId: {
-					$nin: ids
-				}
-			}
-		}
+					$nin: ids,
+				},
+			},
+		},
 	};
 	await UsersSessions.updateAsync({}, update, {multi: true});
 }
@@ -105,5 +105,5 @@ UserPresenceMonitor = {
 
 	setStatus(id, status, metadata) {
 		UserPresenceEvents.emit('setStatus', id, status, metadata);
-	}
+	},
 };

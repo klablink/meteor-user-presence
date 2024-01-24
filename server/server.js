@@ -1,9 +1,4 @@
 import 'colors';
-import { UsersSessions } from '../common/common';
-import { UserPresenceMonitor, UserPresenceEvents } from './monitor';
-import { Meteor } from 'meteor/meteor';
-import { check, Match } from 'meteor/check';
-// nimport { InstanceStatus } from 'meteor/konecty:multiple-instances-status';
 
 // KLASYNC: _ensureIndex is deprecated. Use createIndex instead.
 UsersSessions.createIndex({'connections.instanceId': 1}, {sparse: 1, name: 'connections.instanceId'});
@@ -51,7 +46,7 @@ const checkUser = async function checkUser(id, userId) {
 	return true;
 };
 
-const UserPresence = {
+UserPresence = {
 	activeLogs() {
 		logEnable = true;
 	},
@@ -341,5 +336,3 @@ const UserPresence = {
 		});
 	},
 };
-
-export { UserPresence };

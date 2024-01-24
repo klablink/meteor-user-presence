@@ -11,20 +11,15 @@ Package.onUse(function(api) {
     api.use('tracker');
     api.use('check');
     api.use('ecmascript');
-    api.use('mongo')
+    api.use('mongo');
 
-/*
     api.addFiles('common/common.js');
     api.addFiles('server/server.js', ['server']);
     api.addFiles('server/monitor.js', ['server']);
     api.addFiles('client/client.js', ['client']);
-*/
 
-    api.mainModule('server.js', 'server')
-    api.mainModule('client.js', 'client')
-
-//    api.export(['UserPresence', 'UsersSessions'], ['server', 'client']);
-//    api.export(['UserPresenceMonitor', 'UserPresenceEvents'], ['server']);
+    api.export(['UserPresence', 'UsersSessions'], ['server', 'client']);
+    api.export(['UserPresenceMonitor', 'UserPresenceEvents'], ['server']);
 });
 
 Package.onTest(function(api) {
@@ -36,3 +31,4 @@ Package.onTest(function(api) {
 Npm.depends({
     colors: '1.3.2',
 });
+

@@ -1,5 +1,5 @@
-import { Mongo } from 'meteor/mongo';
+/* globals UsersSessions */
+/* exported UsersSessions */
 
-const UsersSessions = new Mongo.Collection('usersSessions');
 
-export { UsersSessions };
+UsersSessions = new Mongo.Collection('usersSessions');
