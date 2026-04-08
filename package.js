@@ -6,7 +6,7 @@ Package.describe({
 });
 
 Package.onUse(function(api) {
-    api.versionsFrom(['2.13.3', '3.0',"3.3.2"]);
+    api.versionsFrom(['2.13.3', '3.0',"3.3.2","3.4"]);
 
     api.use('tracker');
     api.use('check');
